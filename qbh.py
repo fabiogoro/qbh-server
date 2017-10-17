@@ -34,4 +34,4 @@ def search_query(query):
             updatequeue(S, best, K, song)
         print(json.dumps({'res': S[0]['track'].events.tolist(), 'trans': query.events.tolist()}))
 
-search_query(Midi(sys.argv[1],'00001'))
+search_query(Midi(sys.argv[1],'00001',1))

@@ -10,50 +10,95 @@ function initAudio() {
 initAudio();
 
 var socket = io();
+function test(){
+  socket.emit('test');
+}
 var recorder;
 
 var audio_context = new AudioContext();
 
-function draw(canvas_context, array, last_tick){
-  canvas_context.fillStyle = 'black';
-  var last_time = 0;
+var lt;
+var time_count;
+function draw(element, array, last_tick){
+  canvas_context = element.getContext('2d');
+  canvas_context.fillStyle = '#222222';
+  var last_time = array[0][0];
   for(i in array){
-    var pitch = array[i][1];
     var time = array[i][0];
-    canvas_context.fillRect(last_time/last_tick*800, pitch/127*100, (time-last_time)/last_tick*800, 3);
+    if(array[i][2]==0){
+      var pitch = array[i][1];
+      canvas_context.fillRect(Math.floor(last_time/last_tick*element.width), 100-(pitch%12/12*100), Math.floor((time-last_time)/last_tick*element.width), 10);
+    }
     last_time = time;
+  }
+  lt = last_tick;
+}
+
+var last_image = null;
+var jump;
+function marker(element){
+  canvas_context = element.getContext('2d');
+  if(last_image!=null) {
+    var last_time = Math.floor(time_count);
+    canvas_context.clearRect(last_time,0,2,100);
+    canvas_context.putImageData(last_image,last_time,0);
+    time_count = time_count+jump;
+  }
+  var last_time = Math.floor(time_count);
+  last_image = canvas_context.getImageData(last_time, 0, 2, 100);
+  canvas_context.fillRect(last_time, 0, 2, 100);
+  if(last_time < element.width) window.requestAnimationFrame(()=>marker(element));
+  else {
+    canvas_context.clearRect(last_time-jump,0,2,100);
+    canvas_context.putImageData(last_image,last_time-jump,0);
+    playing=false;
   }
 }
 
 socket.on('ans', function(message) {
   message = JSON.parse(message);
-  document.body.innerHTML = '<button id=res class=player></button><button id=trans class=player></button>';
+  document.body.innerHTML = '';
+  var button_res = document.createElement("button");
+  button_res.setAttribute("id", "res");
+  button_res.setAttribute("class", "player");
+  document.body.appendChild(button_res);
   var canvas_res = document.createElement("canvas");
-  canvas_res.width = 800;
-  canvas_res.height = 100;
+  canvas_res.setAttribute("id", "canvas_res");
+  canvas_res.setAttribute("class", "visualizer");
+  draw(canvas_res, message['res'], message['res'][message['res'].length-1][0]);
   document.body.appendChild(canvas_res);
-  draw(canvas_res.getContext('2d'), message['res'], message['res'][message['res'].length-1][0]);
+  var button_trans = document.createElement("button");
+  button_trans.setAttribute("id", "trans");
+  button_trans.setAttribute("class", "player");
+  document.body.appendChild(button_trans);
   var canvas_trans = document.createElement("canvas");
-  canvas_trans.width = 800;
-  canvas_trans.height = 100;
+  canvas_trans.setAttribute("id", "canvas_trans");
+  canvas_trans.setAttribute("class", "visualizer");
+  draw(canvas_trans, message['trans'], message['res'][message['res'].length-1][0]);
   document.body.appendChild(canvas_trans);
-  draw(canvas_trans.getContext('2d'), message['trans'], message['res'][message['res'].length-1][0]);
-  var play_res = document.getElementById('res');
-  play_res.addEventListener('mousedown', function(){play(message['res'])});
-  var play_trans = document.getElementById('trans');
-  play_trans.addEventListener('mousedown', function(){play(message['trans'])});
+  button_res.addEventListener('mousedown', function(){play(message['res'], '_res')});
+  button_trans.addEventListener('mousedown', function(){play(message['trans'], '_trans')});
 });
 
-function play(events) {
-  osc = audio_context.createOscillator();
-  osc.start(audio_context.currentTime);
-  osc.connect(audio_context.destination);
-  var i;
-  for(i in events){
-    var frequency = Math.pow(2, (events[i][1] - 69) / 12)*440;
-    osc.frequency.setValueAtTime(frequency, audio_context.currentTime+events[i][0]/1000);
+var playing = false;
+function play(events, which) {
+  if(playing == false){
+    playing = true;
+    osc = audio_context.createOscillator();
+    osc.start(audio_context.currentTime);
+    osc.connect(audio_context.destination);
+    osc.frequency.setValueAtTime(0, audio_context.currentTime);
+    var i;
+    for(i in events){
+      var frequency = Math.pow(2, (events[i][1]%12) / 12)*440;
+      osc.frequency.setValueAtTime(frequency, audio_context.currentTime+events[i][0]/1000);
+    }
+    osc.stop(audio_context.currentTime+events[i][0]/1000);
+    time_count = 0;
+    var element = document.getElementById('canvas'+which);
+    jump = 16.55*element.width/lt;
+    marker(element);
   }
-  osc.stop(audio_context.currentTime+events[i][0]/1000);
 }
 
 var vec;
